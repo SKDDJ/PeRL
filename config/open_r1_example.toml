@@ -2,7 +2,7 @@
     seed = 42
 
 [model]
-    model_name_or_path = "Qwen/Qwen3-0.6B"
+    model_name_or_path = "Qwen/Qwen3-8B-Base"
     dtype = "bfloat16"
 
 [peft]
