@@ -11,7 +11,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 ACCELERATE_LOG_LEVEL=info \
     run.py train \
     --config.common.seed 42 \
     --config.common.debug false \
-    --config.model.model_name_or_path "Qwen/Qwen2.5-3B-Instruct" \
+    --config.model.model_name_or_path "Qwen/Qwen2.5-1.5B-Instruct" \
     --config.model.dtype "bfloat16" \
     --config.peft.use_peft false \
     --config.peft.type "lora" \

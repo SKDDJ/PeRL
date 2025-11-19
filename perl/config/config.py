@@ -56,6 +56,7 @@ class TrainingConfig:
     report_to: List[str] = field(default_factory=lambda: ["wandb"])
     beta: float = 0.0
     warmup_ratio: float = 0.0
+    per_device_train_batch_size: int = 1
 
 
 @dataclass
