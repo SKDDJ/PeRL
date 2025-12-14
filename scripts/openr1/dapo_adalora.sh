@@ -5,7 +5,7 @@ LOG_FILE=${OUTPUT_DIR}/output.log
 
 mkdir -p ${OUTPUT_DIR}
 
-CUDA_VISIBLE_DEVICES=4,5,6,7 ACCELERATE_LOG_LEVEL=info \
+CUDA_VISIBLE_DEVICES=0,1,2,3 ACCELERATE_LOG_LEVEL=info \
     accelerate launch \
     --main_process_port 29503 \
     --config_file scripts/accelerate/ds_zero2_4gpu.yaml \
@@ -44,7 +44,7 @@ CUDA_VISIBLE_DEVICES=4,5,6,7 ACCELERATE_LOG_LEVEL=info \
     --config.training.lr_scheduler_type "constant" \
     --config.training.lr_scheduler_kwargs.min_lr_rate 0.1 \
     --config.training.vllm_mode "colocate" \
-    --config.training.vllm_gpu_memory_utilization 0.4 \
+    --config.training.vllm_gpu_memory_utilization 0.1 \
     --config.training.use_liger_kernel false \
     --config.training.loss_type "dapo" \
     --config.training.report_to '["wandb"]' \
