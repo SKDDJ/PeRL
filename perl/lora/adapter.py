@@ -175,6 +175,19 @@ def apply_hra(model, args):
     )
     return None, get_peft_model(model, config)
 
+def apply_rslora(model, args):
+    from peft import LoraConfig, get_peft_model
+    config = LoraConfig(
+        peft_type="LORA",
+        use_rslora=True,
+        task_type=args.peft.task_type,
+        r=args.peft.r,
+        lora_alpha=args.peft.lora_alpha,
+        target_modules=args.peft.target_modules,
+        lora_dropout=args.peft.lora_dropout,
+    )
+    return None, get_peft_model(model, config)
+
 # ------------------------------ mapping function to peft type ------------------------------
 
 PEFT_TYPE_TO_FUNCTION_MAPPING = {
