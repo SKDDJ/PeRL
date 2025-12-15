@@ -1,0 +1,111 @@
+#! /bin/bash
+
+set -exo pipefail
+ulimit -n 65535
+
+PROJECT_DIR="."
+BASE_MODEL_PATH="deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+
+DATASET="aime2024@32"
+
+export PYTHONPATH="${PROJECT_DIR}"
+export HF_ENDPOINT="https://hf-mirror.com"
+export VLLM_TORCH_COMPILE="0"
+
+TEMPERATURE="0.7"
+TOP_P="0.9"
+MAX_NEW_TOKENS="31744"
+# MAX_NEW_TOKENS="65536"
+CUDA_VISIBLE_DEVICES=0,1,2,3
+DP_SIZE=4
+TP_SIZE=1
+MAX_NUM_REQUEST="$((200 * ${DP_SIZE}))"
+GPU_MEMORY_UTILIZATION=0.95
+
+function kill_vllm_processes() {
+  pkill -9 -f "vllm.entrypoints.openai.api_server" || true;
+  pkill -9 -f "VLLM::EngineCore" || true;
+  sleep 1;
+  pkill -9 -f "vllm.entrypoints.openai.api_server" || true;
+  pkill -9 -f "VLLM::EngineCore" || true;
+}
+
+function eval_model_with_adapter() {
+  kill_vllm_processes;
+  
+  RESULT_DIR="$1"
+  MODEL_DIR="$2"
+  ADAPTER_DIR="$3"
+
+  mkdir -p "${RESULT_DIR}"
+  
+  CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES} python "${PROJECT_DIR}/perl/eval.py" \
+    --prompt-format "open-r1" \
+    --result-dir "${RESULT_DIR}" \
+    --model "${MODEL_DIR}" \
+    --adapter "${ADAPTER_DIR}" \
+    --dataset "${DATASET}" \
+    --serve-port 8000 \
+    --dp-size "${DP_SIZE}" \
+    --tp-size "${TP_SIZE}" \
+    --gpu-memory-utilization "${GPU_MEMORY_UTILIZATION}" \
+    --seed "42" \
+    --temperature "${TEMPERATURE}" \
+    --top-p "${TOP_P}" \
+    --max-new-tokens "${MAX_NEW_TOKENS}" \
+    --max-num-request "${MAX_NUM_REQUEST}" \
+    --dtype "bfloat16" 2>&1 | tee "${RESULT_DIR}/eval.log";
+}
+
+function eval_model_with_adapter_from_hf() {
+  local MODEL_NAME="$1"
+  local CKPT_NUM="$2"
+  local CHECKPOINT_NAME="checkpoint-${CKPT_NUM}"
+  
+  echo "=========================================="
+  echo "Evaluating model: ${MODEL_NAME}, checkpoint: ${CHECKPOINT_NAME}"
+  echo "=========================================="
+  
+  mkdir -p "${PROJECT_DIR}/ckpts/${MODEL_NAME}/${CHECKPOINT_NAME}";
+
+  hf download MikaStars39/PeRL \
+      --repo-type model \
+      --local-dir "${PROJECT_DIR}/ckpts/" \
+      --include "${MODEL_NAME}/${CHECKPOINT_NAME}/*";
+
+  ls -a "${PROJECT_DIR}/ckpts/${MODEL_NAME}/${CHECKPOINT_NAME}";
+
+  eval_model_with_adapter \
+      "${PROJECT_DIR}/outputs/eval/aime-${MODEL_NAME}___${CHECKPOINT_NAME}" \
+      "${BASE_MODEL_PATH}" \
+      "${PROJECT_DIR}/ckpts/${MODEL_NAME}/${CHECKPOINT_NAME}";
+}
+
+set +e
+
+MODELS=(
+  "grpo_adalora_qwen2_5_1_5b_20251212_181345"
+
+)
+
+# 定义要评估的 checkpoint 列表
+CHECKPOINTS=(64 128 256 512 1024)
+
+# 遍历所有模型和 checkpoint 组合
+for MODEL_NAME in "${MODELS[@]}"; do
+  echo "=========================================="
+  echo "Starting evaluation for model: ${MODEL_NAME}"
+  echo "=========================================="
+  
+  for CKPT_NUM in "${CHECKPOINTS[@]}"; do
+    eval_model_with_adapter_from_hf "${MODEL_NAME}" "${CKPT_NUM}"
+  done
+  
+  # 评估完该模型的所有checkpoint后，删除下载的模型文件（保留评估结果）
+  echo "=========================================="
+  echo "All checkpoints evaluated for ${MODEL_NAME}, cleaning up downloaded model files..."
+  echo "=========================================="
+  rm -rf "${PROJECT_DIR}/ckpts/${MODEL_NAME}"
+  echo "Deleted ${PROJECT_DIR}/ckpts/${MODEL_NAME}"
+done
+

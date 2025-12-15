@@ -46,7 +46,7 @@ CUDA_VISIBLE_DEVICES=4,5,6,7 ACCELERATE_LOG_LEVEL=info \
     --config.training.vllm_mode "colocate" \
     --config.training.vllm_gpu_memory_utilization 0.4 \
     --config.training.use_liger_kernel false \
-    --config.training.loss_type "dapo" \
+    --config.training.loss_type "dr_grpo" \
     --config.training.report_to '["wandb"]' \
     --config.logging.trackio_space_id "Open-Tinker/Open-Tinker" \
     --config.logging.trackio_project "grpo-full-qwen3-4b" \
