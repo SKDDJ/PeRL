@@ -62,3 +62,8 @@ Code:
 |        |       |avg@n:n=1 |0.4667|±  |0.0926|
 |all     |       |pass@k:k=1|0.4667|±  |0.0926|
 |        |       |avg@n:n=1 |0.4667|±  |0.0926|
+
+##
+```
+python scripts/eval/view_eval.py outputs/dapo_lora_plus_20251204_160304
+```

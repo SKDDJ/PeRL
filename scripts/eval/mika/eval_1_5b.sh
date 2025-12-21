@@ -18,8 +18,8 @@ TEMPERATURE="0.7"
 TOP_P="0.9"
 MAX_NEW_TOKENS="31744"
 # MAX_NEW_TOKENS="65536"
-CUDA_VISIBLE_DEVICES=0,1,2,3
-DP_SIZE=4
+CUDA_VISIBLE_DEVICES=0,3
+DP_SIZE=2
 TP_SIZE=1
 MAX_NUM_REQUEST="$((200 * ${DP_SIZE}))"
 GPU_MEMORY_UTILIZATION=0.95
@@ -59,26 +59,10 @@ function eval_model_with_adapter() {
     --dtype "bfloat16" 2>&1 | tee "eval.log";
 }
 
-function eval_model_with_adapter_from_hf() {
-  mkdir -p "${PROJECT_DIR}/ckpts/$1/$2";
-
-  hf download MikaStars39/PeRL \
-      --repo-type model \
-      --local-dir "${PROJECT_DIR}/ckpts/" \
-      --include "$1/$2/*";
-
-  ls -a "${PROJECT_DIR}/ckpts/$1/$2";
-
-  eval_model_with_adapter \
-      "${PROJECT_DIR}/outputs/eval/openr1-$1___$2" \
-      "${BASE_MODEL_PATH}" \
-      "${PROJECT_DIR}/ckpts/$1/$2";
-}
-
 set +e
 
 eval_model_with_adapter \
-   "${PROJECT_DIR}/outputs/grpo_adalora_qwen2_5_1_5b_20251212_181345" \
+   "${PROJECT_DIR}/outputs/dapo_lora_fa_20251204_152725" \
    "${BASE_MODEL_PATH}" \
-   "${PROJECT_DIR}/outputs/grpo_adalora_qwen2_5_1_5b_20251212_181345"
+   "${PROJECT_DIR}/ckpts/dapo_lora_fa_20251204_152725/checkpoint-1024"
 
