@@ -14,13 +14,21 @@ import sys
 logger = logging.getLogger()
 
 
-def init_logger() -> None:
-    logger.setLevel(logging.INFO)
+def init_logger(rank: int = 0) -> None:
+    """Initialize logger with rank information.
+    
+    Args:
+        rank: The process rank. Only rank 0 logs INFO level, others log WARNING+.
+    """
+    # Only main process logs INFO, others only log WARNING and above
+    log_level = logging.INFO if rank == 0 else logging.WARNING
+    
+    logger.setLevel(log_level)
     logger.handlers.clear()
     ch = logging.StreamHandler(sys.stdout)
-    ch.setLevel(logging.INFO)
+    ch.setLevel(log_level)
     formatter = logging.Formatter(
-        "[PeRL] %(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        f"[PeRL][Rank {rank}] %(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     ch.setFormatter(formatter)
     logger.addHandler(ch)

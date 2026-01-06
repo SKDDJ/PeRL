@@ -15,22 +15,29 @@ from perl.config.config import TrainConfig
 def fuzzy_jobs(
     args: TrainConfig
 ):
-    init_logger()
+    # Determine rank early using environment variables
+    # (torch.distributed may not be initialized yet at this point)
+    local_rank = int(os.environ.get("LOCAL_RANK", os.environ.get("RANK", "0")))
+    is_main_process = local_rank == 0
+    
+    init_logger(rank=local_rank)
     args.training.output_dir = args.training.output_dir or "output"
     args.training.run_name = args.training.run_name or args.training.output_dir # training run name is the output_dir
-    if not os.path.exists(args.training.output_dir): # check if output_dir exists
-        os.makedirs(args.training.output_dir, exist_ok=True)
-    else:
-        logger.info(f"Output directory {args.training.output_dir} already exists, using it")
+    
+    # Only create directory on main process to avoid race conditions
+    if is_main_process:
+        if not os.path.exists(args.training.output_dir): # check if output_dir exists
+            os.makedirs(args.training.output_dir, exist_ok=True)
+        else:
+            logger.info(f"Output directory {args.training.output_dir} already exists, using it")
     set_seed(args.common.seed)
 
     if args.common.debug:
         args.training.report_to = []
 
-    # only initialize for rank 0 when process group is available
-    is_main_process = True
+    # Sync all processes before continuing (ensure directory is created)
     if torch.distributed.is_available() and torch.distributed.is_initialized():
-        is_main_process = torch.distributed.get_rank() == 0
+        torch.distributed.barrier()
 
     if is_main_process:
         if "trackio" in args.training.report_to:
@@ -44,6 +51,7 @@ def fuzzy_jobs(
         elif "wandb" in args.training.report_to:
             import wandb
             wandb.init(
+                project=args.logging.wandb_project,
                 name=args.training.run_name,
                 config=vars(args.training),
             )
@@ -95,8 +103,8 @@ def train(
     # 3. configure lora
     if args.peft.use_peft:
         logger.info(f"Detected PEFT configuration, configuring lora")
-        from perl.lora.adapter import apply_lora
-        optimizer, model = apply_lora(model, args)
+        from perl.lora.adapter import apply_peft
+        optimizer, model = apply_peft(model, args)
         logger.info(f"Lora configured successfully")
 
     # 4.Training configuration
