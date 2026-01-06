@@ -3,7 +3,7 @@ import torch
 import os
 
 from typing import List, Optional
-from datasets import load_dataset
+# from datasets import load_dataset
 from transformers import set_seed, AutoModelForCausalLM, AutoTokenizer
 from trl import GRPOConfig, GRPOTrainer
 from fire import Fire
@@ -105,6 +105,7 @@ def train(
         logger.info(f"Detected PEFT configuration, configuring lora")
         from perl.lora.adapter import apply_peft
         optimizer, model = apply_peft(model, args)
+        model.print_trainable_parameters()
         logger.info(f"Lora configured successfully")
 
     # 4.Training configuration
@@ -129,5 +130,7 @@ def train(
         resume_checkpoint = True
     trainer.train(resume_from_checkpoint=resume_checkpoint)
     logger.info(f"Training completed successfully")
+    # Note: For PiSSA, the save_pretrained method is monkey-patched in apply_pissa
+    # to automatically convert PiSSA to standard LoRA format
     trainer.save_model(training_args.output_dir)
     logger.info(f"Model saved to {training_args.output_dir}")

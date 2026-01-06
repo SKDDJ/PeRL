@@ -42,7 +42,22 @@ def apply_miss(model, args):
     return None, get_peft_model(model, config)
 
 def apply_pissa(model, args):
+    """
+    Apply PiSSA (Principal Singular values and Singular vectors Adaptation) to the model.
+    
+    PiSSA decomposes original weights W into principal components (A_0 * B_0) and residual (W_residual).
+    The backbone is replaced with W_residual, and LoRA A/B are initialized with A_0, B_0.
+    
+    CRITICAL: When saving PiSSA, we must convert it to standard LoRA format for correct evaluation.
+    ΔW = A*B - A_0*B_0 = [A | A_0] * [B | -B_0]^T = A' * B'
+    
+    This conversion is done automatically by passing path_initial_model_for_weight_conversion
+    to save_pretrained(). We monkey-patch the method to ensure all saves (including intermediate
+    checkpoints) are properly converted.
+    """
+    import os
     from peft import LoraConfig, get_peft_model
+    
     lora_config = LoraConfig(
         # init_lora_weights="pissa", # Configure the initialization method to "pissa", which may take several minutes to execute SVD on the pre-trained model.
         init_lora_weights="pissa_niter_4", # Initialize the PiSSA with fast SVD, which completes in just a few seconds.
@@ -52,7 +67,34 @@ def apply_pissa(model, args):
         target_modules=args.peft.target_modules,
         task_type=args.peft.task_type,
     )
-    return None, get_peft_model(model, lora_config)
+    peft_model = get_peft_model(model, lora_config)
+    
+    # Save PiSSA initial weights for later conversion
+    # This directory contains A_0, B_0 which are needed to convert PiSSA -> LoRA
+    pissa_init_dir = os.path.join(args.training.output_dir, "pissa_init")
+    os.makedirs(pissa_init_dir, exist_ok=True)
+    peft_model.save_pretrained(pissa_init_dir)
+    print(f"[PiSSA] Saved initial weights to {pissa_init_dir} for PiSSA -> LoRA conversion")
+    
+    # Monkey-patch save_pretrained to automatically convert PiSSA to standard LoRA format
+    # This ensures all saves (intermediate checkpoints + final save) are correctly converted
+    original_save_pretrained = peft_model.save_pretrained
+    
+    def save_pretrained_with_pissa_conversion(save_directory, *save_args, **save_kwargs):
+        """
+        Wrapper around save_pretrained that automatically converts PiSSA to LoRA format.
+        
+        By passing path_initial_model_for_weight_conversion, PEFT computes:
+        ΔW = A*B - A_0*B_0 and saves this as standard LoRA weights that can be loaded
+        on the original (non-decomposed) base model.
+        """
+        if 'path_initial_model_for_weight_conversion' not in save_kwargs:
+            save_kwargs['path_initial_model_for_weight_conversion'] = pissa_init_dir
+        return original_save_pretrained(save_directory, *save_args, **save_kwargs)
+    
+    peft_model.save_pretrained = save_pretrained_with_pissa_conversion
+    
+    return None, peft_model
 
 def apply_milora(model, args):
     from .milora import add_svd_initialized_lora
