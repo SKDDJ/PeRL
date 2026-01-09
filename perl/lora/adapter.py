@@ -6,6 +6,7 @@
 from .slicefine import register_slicefine_method
 register_slicefine_method() # register slicefine method to peft
 from perl.utils.logging import logger
+import torch
 
 def apply_lora(model, args):
     from peft import LoraConfig, get_peft_model
@@ -57,6 +58,7 @@ def apply_pissa(model, args):
     checkpoints) are properly converted.
     """
     import os
+    from contextlib import contextmanager
     from peft import LoraConfig, get_peft_model
     
     lora_config = LoraConfig(
@@ -92,23 +94,42 @@ def apply_pissa(model, args):
         if 'path_initial_model_for_weight_conversion' not in save_kwargs:
             save_kwargs['path_initial_model_for_weight_conversion'] = pissa_init_dir
         
-        if 'state_dict' in save_kwargs:
-            # Fix for KeyError: 'model.model.layers...' mismatch
-            # The state_dict passed by Trainer has 'base_model.' prefix (because it comes from PeftModel),
-            # whereas `subtract_mutated_init` (invoked on the underlying LoraModel) expects keys 
-            # relative to the LoraModel itself.
-            # We explicitly strip the 'base_model.' prefix to align the keys.
-            original_state_dict = save_kwargs['state_dict']
-            new_state_dict = {}
-            for k, v in original_state_dict.items():
-                if k.startswith("base_model."):
-                    new_state_dict[k.replace("base_model.", "", 1)] = v
-                else:
-                    new_state_dict[k] = v
-            save_kwargs['state_dict'] = new_state_dict
+        # Context manager to patch subtract_mutated_init
+        @contextmanager
+        def temporary_subtract_mutated_init_patch(base_model):
+            original_method = base_model.subtract_mutated_init
+            
+            def patched_subtract_mutated_init(output_state_dict, adapter_name, kwargs=None):
+                # Remove state_dict from kwargs to force get_peft_model_state_dict
+                # to use model.state_dict() which contains the newly loaded init adapter
+                if kwargs and 'state_dict' in kwargs:
+                    kwargs = kwargs.copy()
+                    del kwargs['state_dict']
+                
+                # Align devices: ensure output_state_dict tensors match model device
+                # The pissa_init weights are in the model (on GPU/Device), so we need 
+                # output_state_dict to mock that device for the subtraction operation.
+                model_device = None
+                for param in base_model.parameters():
+                    model_device = param.device
+                    break
+                
+                if model_device is not None:
+                     for k, v in output_state_dict.items():
+                         if isinstance(v, torch.Tensor) and v.device != model_device:
+                             output_state_dict[k] = v.to(model_device)
 
+                return original_method(output_state_dict, adapter_name, kwargs)
+            
+            base_model.subtract_mutated_init = patched_subtract_mutated_init
+            try:
+                yield
+            finally:
+                base_model.subtract_mutated_init = original_method
 
-        return original_save_pretrained(save_directory, *save_args, **save_kwargs)
+        # Use the context manager during save
+        with temporary_subtract_mutated_init_patch(peft_model.base_model):
+            return original_save_pretrained(save_directory, *save_args, **save_kwargs)
     
     peft_model.save_pretrained = save_pretrained_with_pissa_conversion
     
