@@ -5,6 +5,7 @@
 
 from .slicefine import register_slicefine_method
 register_slicefine_method() # register slicefine method to peft
+from perl.utils.logging import logger
 
 def apply_lora(model, args):
     from peft import LoraConfig, get_peft_model
@@ -90,6 +91,23 @@ def apply_pissa(model, args):
         """
         if 'path_initial_model_for_weight_conversion' not in save_kwargs:
             save_kwargs['path_initial_model_for_weight_conversion'] = pissa_init_dir
+        
+        if 'state_dict' in save_kwargs:
+            # Fix for KeyError: 'model.model.layers...' mismatch
+            # The state_dict passed by Trainer has 'base_model.' prefix (because it comes from PeftModel),
+            # whereas `subtract_mutated_init` (invoked on the underlying LoraModel) expects keys 
+            # relative to the LoraModel itself.
+            # We explicitly strip the 'base_model.' prefix to align the keys.
+            original_state_dict = save_kwargs['state_dict']
+            new_state_dict = {}
+            for k, v in original_state_dict.items():
+                if k.startswith("base_model."):
+                    new_state_dict[k.replace("base_model.", "", 1)] = v
+                else:
+                    new_state_dict[k] = v
+            save_kwargs['state_dict'] = new_state_dict
+
+
         return original_save_pretrained(save_directory, *save_args, **save_kwargs)
     
     peft_model.save_pretrained = save_pretrained_with_pissa_conversion

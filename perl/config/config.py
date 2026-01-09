@@ -31,8 +31,8 @@ class PeftConfig:
 
 
 @dataclass
-class TrainingConfig:
-    """Training configuration settings"""
+class GRPOTrainingConfig:
+    """GRPO/RL Training configuration settings"""
     learning_rate: float = 1e-5
     output_dir: str = ""
     run_name: str = ""
@@ -62,6 +62,31 @@ class TrainingConfig:
     per_device_train_batch_size: int = 1
     top_entropy_quantile: float = 0.2
 
+
+@dataclass
+class SFTTrainingConfig:
+    """SFT Training configuration settings"""
+    learning_rate: float = 2e-5
+    output_dir: str = ""
+    run_name: str = ""
+    resume_from_checkpoint: str = None
+    gradient_accumulation_steps: int = 4
+    num_train_epochs: int = 3
+    max_seq_length: int = 2048  # Maximum sequence length for SFT
+    packing: bool = False  # Whether to pack multiple sequences into one
+    logging_steps: int = 10
+    save_strategy: str = "steps"
+    save_steps: int = 500
+    max_steps: int = -1  # -1 means use num_train_epochs
+    lr_scheduler_type: str = "cosine"
+    lr_scheduler_kwargs: Dict[str, Any] = field(default_factory=dict)
+    report_to: List[str] = field(default_factory=lambda: ["wandb"])
+    warmup_ratio: float = 0.03
+    per_device_train_batch_size: int = 4
+    bf16: bool = True
+    gradient_checkpointing: bool = False
+
+
 @dataclass
 class LoggingConfig:
     """Logging configuration settings"""
@@ -77,12 +102,27 @@ class DatasetConfig:
     example_numbers: int = 1000000000  # use all examples
 
 
+# Keep TrainConfig as alias for backward compatibility
 @dataclass
 class TrainConfig:
-    """Main training configuration"""
+    """Main GRPO training configuration (alias for GRPOTrainConfig)"""
     common: CommonConfig = field(default_factory=CommonConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
     peft: PeftConfig = field(default_factory=PeftConfig)
-    training: TrainingConfig = field(default_factory=TrainingConfig)
+    training: GRPOTrainingConfig = field(default_factory=GRPOTrainingConfig)
+    logging: LoggingConfig = field(default_factory=LoggingConfig)
+    dataset: DatasetConfig = field(default_factory=DatasetConfig)
+
+# Explicit GRPO config alias
+GRPOTrainConfig = TrainConfig
+
+
+@dataclass
+class SFTTrainConfig:
+    """Main SFT training configuration"""
+    common: CommonConfig = field(default_factory=CommonConfig)
+    model: ModelConfig = field(default_factory=ModelConfig)
+    peft: PeftConfig = field(default_factory=PeftConfig)
+    training: SFTTrainingConfig = field(default_factory=SFTTrainingConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     dataset: DatasetConfig = field(default_factory=DatasetConfig)

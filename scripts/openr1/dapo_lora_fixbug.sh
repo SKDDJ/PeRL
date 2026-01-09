@@ -1,14 +1,15 @@
 unset WANDB_DISABLED
-OUTPUT_DIR=outputs/dapo_lora_qwen_1_5b_r1_$(date +%Y%m%d_%H%M%S)
+export PYTHONUNBUFFERED=1
+set -o pipefail
+OUTPUT_DIR=outputs/dapo_lora_fixbug_qwen2_5_1_5b_$(date +%Y%m%d_%H%M%S)
 # OUTPUT_DIR=outputs/debug
 LOG_FILE=${OUTPUT_DIR}/output.log
 
-export HF_ENDPOINT="https://hf-mirror.com"
 mkdir -p ${OUTPUT_DIR}
 
 CUDA_VISIBLE_DEVICES=0,1,2,3 ACCELERATE_LOG_LEVEL=info \
     accelerate launch \
-    --main_process_port 29500 \
+    --main_process_port 29502 \
     --config_file scripts/accelerate/ds_zero2_4gpu.yaml \
     run.py train \
     --config.common.seed 42 \
@@ -18,8 +19,8 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 ACCELERATE_LOG_LEVEL=info \
     --config.peft.use_peft true \
     --config.peft.type "lora" \
     --config.peft.task_type "CAUSAL_LM" \
-    --config.peft.r 1 \
-    --config.peft.lora_alpha 2 \
+    --config.peft.r 32 \
+    --config.peft.lora_alpha 64 \
     --config.peft.lora_dropout 0.05 \
     --config.peft.total_step 1000 \
     --config.peft.target_modules '["q_proj","v_proj","k_proj","o_proj","up_proj","down_proj","gate_proj"]' \
@@ -50,8 +51,8 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 ACCELERATE_LOG_LEVEL=info \
     --config.training.loss_type "dapo" \
     --config.training.report_to '["wandb"]' \
     --config.logging.trackio_space_id "Open-Tinker/Open-Tinker" \
-    --config.logging.trackio_project "grpo-full-qwen3-4b" \
-    --config.logging.wandb_project "grpo-full-qwen3-4b" \
+    --config.logging.trackio_project "dapo-pissa-fixbug" \
+    --config.logging.wandb_project "dapo-pissa-fixbug-qwen2.5-1.5b" \
     --config.dataset.dataset_name_or_path "open-r1/DAPO-Math-17k-Processed" \
     --config.dataset.example_numbers 1000000000 \
-    &> ${LOG_FILE}
+    2>&1 | tee "${LOG_FILE}"

@@ -59,7 +59,7 @@ def fuzzy_jobs(
 
     return args
 
-def train(
+def grpo(
     config: TrainConfig = None
 ):
     # 0. parse args and prepare logger
