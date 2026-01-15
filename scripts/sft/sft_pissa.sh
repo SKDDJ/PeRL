@@ -5,7 +5,7 @@
 set -e
 export PYTHONUNBUFFERED=1
 
-OUTPUT_DIR=outputs/sft_example_$(date +%Y%m%d_%H%M%S)
+OUTPUT_DIR=outputs/sft_example_pissa_r16_$(date +%Y%m%d_%H%M%S)
 mkdir -p ${OUTPUT_DIR}
 
 CUDA_VISIBLE_DEVICES=0,1,2,3 ACCELERATE_LOG_LEVEL=info \

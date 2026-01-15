@@ -5,7 +5,7 @@
 set -e
 export PYTHONUNBUFFERED=1
 
-OUTPUT_DIR=outputs/sft_example_$(date +%Y%m%d_%H%M%S)
+OUTPUT_DIR=outputs/sft_example_lora_r16_$(date +%Y%m%d_%H%M%S)
 mkdir -p ${OUTPUT_DIR}
 
 CUDA_VISIBLE_DEVICES=0,1,2,3 ACCELERATE_LOG_LEVEL=info \
@@ -39,5 +39,5 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 ACCELERATE_LOG_LEVEL=info \
     --config.training.bf16 true \
     --config.training.report_to '["wandb"]' \
     --config.logging.wandb_project "perl-sft" \
-    --config.dataset.dataset_name_or_path "imdb" \
+    --config.dataset.dataset_name_or_path "open-r1/DAPO-Math-17k-Processed" \
     2>&1 | tee "${OUTPUT_DIR}/output.log"
